@@ -1,6 +1,8 @@
 from fastapi import FastAPI, WebSocket, Depends, HTTPException, Query
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+
+import uvicorn
 from typing import List, Optional
 from sqlalchemy import create_engine, Column, Integer, String, Float, Text, ForeignKey, DateTime, Boolean
 from sqlalchemy.orm import sessionmaker, declarative_base, relationship, Session
@@ -480,3 +482,8 @@ def ws_api_usage():
         "usage": "ws://<host>/ws/chat/{user_id}, send JSON {'message': <message>, 'to': <user_id>}, echo is returned.",
         "hint": "No authentication in stub. In production, pass token as query param or header."
     }
+
+# ---- Entrypoint for local testing and preview (enables backend preview for cloud/dev environments) ----
+if __name__ == "__main__":
+    # Use 0.0.0.0 so containerized/cloud envs work
+    uvicorn.run("src.api.main:app", host="0.0.0.0", port=3001, reload=True)
