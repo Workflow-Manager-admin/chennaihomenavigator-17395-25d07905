@@ -37,7 +37,11 @@ class User(Base):
     name = Column(String, index=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     # Relationship to profile
-    profile = relationship("UserProfile", uselist=False, back_populates="user")
+    profile = relationship(
+        "UserProfile",
+        uselist=False,
+        back_populates="user"
+    )
 
 
 class UserProfile(Base):
@@ -213,13 +217,17 @@ app = FastAPI(
     openapi_tags=[
         {"name": "Health", "description": "API Health and DB Connectivity"},
         {"name": "Users", "description": "User registration, login, profiles"},
-        {"name": "Properties", "description": "Create/search/filter property listings"},
-        {"name": "Media", "description": "Media for listings (photos, videos, links)"},
+        {"name": "Properties",
+         "description": "Create/search/filter property listings"},
+        {"name": "Media",
+         "description": "Media for listings (photos, videos, links)"},
         {"name": "Search", "description": "Property and map search/filter"},
-        {"name": "Scheduling", "description": "Schedule/track property visits"},
+        {"name": "Scheduling",
+         "description": "Schedule/track property visits"},
         {"name": "Chat", "description": "WebSocket and Twilio chat"},
         {"name": "AI", "description": "AI Recommendations and insights"},
-        {"name": "Reviews", "description": "CRUD for reviews & moderation"},
+        {"name": "Reviews",
+         "description": "CRUD for reviews & moderation"},
         {"name": "VirtualTours", "description": "360°/AR/VR/Media access"},
     ],
 )
@@ -292,7 +300,9 @@ def register_user(user: UserCreate, db: Session = Depends(get_db)):
     """Register user (simulated, not real auth)"""
     existing = db.query(User).filter(User.email == user.email).first()
     if existing:
-        raise HTTPException(status_code=400, detail="Email already registered")
+        raise HTTPException(
+            status_code=400, detail="Email already registered"
+        )
     db_user = User(
         email=user.email,
         phone=user.phone,
@@ -325,12 +335,15 @@ def get_user(user_id: int, db: Session = Depends(get_db)):
     tags=["Users"],
     response_model=ProfileOut
 )
-def create_profile(user_id: int, profile: ProfileCreate, db: Session = Depends(get_db)):
+def create_profile(user_id: int, profile: ProfileCreate,
+                   db: Session = Depends(get_db)):
     """Create or update user profile."""
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-    existing = db.query(UserProfile).filter(UserProfile.user_id == user_id).first()
+    existing = db.query(UserProfile).filter(
+        UserProfile.user_id == user_id
+    ).first()
     if existing:
         for k, v in profile.dict(exclude_unset=True).items():
             setattr(existing, k, v)
@@ -407,7 +420,10 @@ def search_properties(
     if amenities:
         q = q.filter(Property.amenities.contains(amenities))
     results = q.order_by(Property.created_at.desc()).limit(20).all()
-    return [PropertyOut.from_orm(p) for p in results]
+    return [
+        PropertyOut.from_orm(p)
+        for p in results
+    ]
 
 
 # PUBLIC_INTERFACE
@@ -471,7 +487,8 @@ def add_property_media(
     tags=["Scheduling"],
     response_model=ViewingOut
 )
-def schedule_viewing(user_id: int, details: ViewingCreate, db: Session = Depends(get_db)):
+def schedule_viewing(user_id: int, details: ViewingCreate,
+                     db: Session = Depends(get_db)):
     """Schedule a viewing for a property."""
     user = db.query(User).filter(User.id == user_id).first()
     prop = db.query(Property).filter(Property.id == details.property_id).first()
@@ -554,7 +571,10 @@ def get_ai_recommendations(user_id: int = Query(...)):
     # Return dummy recommendations for now
     return {
         "user_id": user_id,
-        "recommendations": ["Property-101", "Property-202"],
+        "recommendations": [
+            "Property-101",
+            "Property-202"
+        ],
     }
 
 
@@ -567,7 +587,10 @@ def get_ai_recommendations(user_id: int = Query(...)):
 def market_insights():
     """Stub for aggregated NayaPurana.in/market data."""
     return {
-        "insights": "Stub market insights about pricing, trends, supply, demand."
+        "insights": (
+            "Stub market insights about pricing, "
+            "trends, supply, demand."
+        )
     }
 
 
@@ -600,7 +623,10 @@ def get_virtual_tour(property_id: int, db: Session = Depends(get_db)):
 def get_ar_preview(property_id: int):
     """Stub: Returns a dummy AR preview link."""
     return {
-        "ar_preview": f"https://ar-stub.homequestai.com/property/{property_id}"
+        "ar_preview": (
+            "https://ar-stub.homequestai.com/property/"
+            f"{property_id}"
+        )
     }
 
 
@@ -611,7 +637,8 @@ def get_ar_preview(property_id: int):
     tags=["Reviews"],
     response_model=ReviewOut
 )
-def create_review(user_id: int, review: ReviewCreate, db: Session = Depends(get_db)):
+def create_review(user_id: int, review: ReviewCreate,
+                  db: Session = Depends(get_db)):
     """Create a new review for a property (defaults to unapproved)."""
     user = db.query(User).filter(User.id == user_id).first()
     prop = db.query(Property).filter(Property.id == review.property_id).first()
@@ -677,10 +704,9 @@ def approve_review(
         db.commit()
         db.refresh(review)
         return ReviewOut.from_orm(review)
-    else:
-        db.delete(review)
-        db.commit()
-        raise HTTPException(status_code=204, detail="Review deleted")
+    db.delete(review)
+    db.commit()
+    raise HTTPException(status_code=204, detail="Review deleted")
 
 
 # ---- Swagger documentation for direct WebSocket API usage ----
@@ -697,11 +723,12 @@ def ws_api_usage():
     return {
         "usage": (
             "ws://<host>/ws/chat/{user_id}, send JSON "
-            "{'message': <message>, 'to': <user_id>}, echo is returned."
+            "{'message': <message>, 'to': <user_id>}, "
+            "echo is returned."
         ),
         "hint": (
-            "No authentication in stub. In production, pass token as "
-            "query param or header."
+            "No authentication in stub. In production, "
+            "pass token as query param or header."
         ),
     }
 
@@ -715,4 +742,3 @@ if __name__ == "__main__":
         port=3001,
         reload=True
     )
-
