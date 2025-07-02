@@ -1,4 +1,4 @@
-from fastapi import FastAPI, WebSocket, Depends, HTTPException, Query
+from fastapi import FastAPI, WebSocket, Depends, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from typing import List, Optional
@@ -12,6 +12,7 @@ from sqlalchemy.orm import (
 from pydantic import BaseModel, EmailStr
 import sqlite3
 import datetime
+
 
 # SQLite setup
 SQLALCHEMY_DATABASE_URL = "sqlite:///./homequestai.db"
@@ -35,7 +36,6 @@ class User(Base):
     hashed_password = Column(String, nullable=False)
     name = Column(String, index=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
-    # Relationship to profile
     profile = relationship(
         "UserProfile",
         uselist=False,
@@ -51,7 +51,6 @@ class UserProfile(Base):
     budget = Column(Integer)
     preferred_location = Column(String)
     filters = Column(Text)
-    # Relationship
     user = relationship("User", back_populates="profile")
 
 
@@ -63,11 +62,10 @@ class Property(Base):
     description = Column(Text)
     location = Column(String, index=True)
     price = Column(Float)
-    property_type = Column(String)  # rental/purchase
+    property_type = Column(String)
     amenities = Column(String)
     listed_by = Column(Integer, ForeignKey("users.id"))
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
-    # Relationship
     photos = relationship("Media", back_populates="property")
 
 
@@ -77,7 +75,7 @@ class Media(Base):
     id = Column(Integer, primary_key=True)
     url = Column(String)
     property_id = Column(Integer, ForeignKey("properties.id"))
-    media_type = Column(String)  # photo, video, affiliate
+    media_type = Column(String)
     property = relationship("Property", back_populates="photos")
 
 
@@ -232,14 +230,13 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"],  # Development only. Secure as needed.
     allow_credentials=True,
     allow_methods=["*"],
-    allow_headers=["*"],
+    allow_headers=["*"],  # Accept all headers, including Authorization
 )
 
 
-# Dependency to DB session
 def get_db():
     db = SessionLocal()
     try:
@@ -249,6 +246,7 @@ def get_db():
 
 
 # ----------------- HEALTH CHECK ENDPOINTS -----------------
+
 # PUBLIC_INTERFACE
 @app.get(
     "/",
@@ -291,6 +289,7 @@ def db_health_check():
 
 # ----------------- USERS + PROFILE ENDPOINTS -----------------
 # Dummy auth only -- integrate with real auth later, hashed_password is not really used
+
 # PUBLIC_INTERFACE
 @app.post(
     "/users/register",
@@ -339,9 +338,35 @@ def get_user(user_id: int, db: Session = Depends(get_db)):
     tags=["Users"],
     response_model=ProfileOut
 )
-def create_profile(user_id: int, profile: ProfileCreate,
-                   db: Session = Depends(get_db)):
-    """Create or update user profile."""
+async def create_profile(
+    user_id: int,
+    profile: ProfileCreate,
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """
+    Create or update user profile.
+
+    Diagnostics: Logs request headers for integration debugging.
+    """
+    try:
+        headers = dict(request.headers)
+        print(
+            "DEBUG: Incoming headers to /users/{user_id}/profile:",
+            headers
+        )
+        auth_token = headers.get("authorization", None)
+        if auth_token:
+            print(
+                "DEBUG: Authorization header present:",
+                (
+                    auth_token[:34] + "..."
+                    if len(auth_token) > 40
+                    else auth_token
+                )
+            )
+    except Exception as e:
+        print("DEBUG: Failed to read/log request headers:", e)
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -422,9 +447,7 @@ def search_properties(
     if max_price:
         q = q.filter(Property.price <= max_price)
     if amenities:
-        q = q.filter(
-            Property.amenities.contains(amenities)
-        )
+        q = q.filter(Property.amenities.contains(amenities))
     results = (
         q.order_by(Property.created_at.desc())
         .limit(20).all()
@@ -502,8 +525,10 @@ def schedule_viewing(user_id: int, details: ViewingCreate,
     user = db.query(User).filter(User.id == user_id).first()
     prop = db.query(Property).filter(Property.id == details.property_id).first()
     if not user or not prop:
-        raise HTTPException(status_code=404,
-                            detail="User or property not found")
+        raise HTTPException(
+            status_code=404,
+            detail="User or property not found"
+        )
     v = Viewing(
         user_id=user_id,
         property_id=details.property_id,
@@ -545,7 +570,6 @@ async def websocket_chat_endpoint(websocket: WebSocket, user_id: int):
     try:
         while True:
             data = await websocket.receive_json()
-            # Echo message back for now (dummy)
             await websocket.send_json({
                 "from": user_id,
                 "echoed_message": data.get("message"),
@@ -581,7 +605,6 @@ def send_sms_stub(phone_number: str = Query(...),
 )
 def get_ai_recommendations(user_id: int = Query(...)):
     """Stub endpoint for Hugging Face AI recommendations. No real ML call."""
-    # Return dummy recommendations for now
     return {
         "user_id": user_id,
         "recommendations": [
@@ -619,8 +642,6 @@ def get_virtual_tour(property_id: int, db: Session = Depends(get_db)):
     """
     Get links to property virtual tour and AR/360° media (stub/dummy for now).
     """
-    # Real endpoint would return AR.js or 360° media links.
-    # Stub: just send all videos for now
     media = db.query(Media).filter(
         Media.property_id == property_id,
         Media.media_type == "video"
@@ -657,8 +678,10 @@ def create_review(user_id: int, review: ReviewCreate,
     user = db.query(User).filter(User.id == user_id).first()
     prop = db.query(Property).filter(Property.id == review.property_id).first()
     if not user or not prop:
-        raise HTTPException(status_code=404,
-                            detail="User or property not found")
+        raise HTTPException(
+            status_code=404,
+            detail="User or property not found"
+        )
     r = Review(
         user_id=user_id,
         property_id=review.property_id,
@@ -750,7 +773,6 @@ def ws_api_usage():
     }
 
 
-# Entry point for local development and backend preview (runs uvicorn server)
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(
