@@ -352,8 +352,9 @@ async def create_profile(
     try:
         headers = dict(request.headers)
         print(
-            "DEBUG: Incoming headers to /users/{user_id}/profile:",
-            headers
+            "DEBUG: Incoming headers to "
+            "/users/{user_id}/profile:\n"
+            f"{headers}"
         )
         auth_token = headers.get("authorization", None)
         if auth_token:
@@ -363,7 +364,7 @@ async def create_profile(
                     auth_token[:34] + "..."
                     if len(auth_token) > 40
                     else auth_token
-                )
+                ),
             )
     except Exception as e:
         print("DEBUG: Failed to read/log request headers:", e)
@@ -661,7 +662,7 @@ def get_ar_preview(property_id: int):
         "ar_preview": (
             "https://ar-stub.homequestai.com/property/"
             f"{property_id}"
-        )
+        ),
     }
 
 
@@ -763,7 +764,7 @@ def ws_api_usage():
     return {
         "usage": (
             "ws://<host>/ws/chat/{user_id}, send JSON "
-            "{'message': <message>, 'to': <user_id>}, "
+            "{'message': <message>, 'to': <user_id>},\n"
             "echo is returned."
         ),
         "hint": (
