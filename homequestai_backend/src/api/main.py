@@ -14,11 +14,18 @@ import sqlite3
 import datetime
 
 
-# SQLite setup
-SQLALCHEMY_DATABASE_URL = "sqlite:///./homequestai.db"
-engine = create_engine(
-    SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False}
-)
+import os
+
+# PostgreSQL (Supabase) setup using environment variables
+SUPABASE_DB_URL = os.getenv("SUPABASE_DB_URL")
+SQLALCHEMY_DATABASE_URL = SUPABASE_DB_URL or "sqlite:///./homequestai.db"
+# Use connect_args only for SQLite
+if SQLALCHEMY_DATABASE_URL.startswith("sqlite"):
+    engine = create_engine(
+        SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False}
+    )
+else:
+    engine = create_engine(SQLALCHEMY_DATABASE_URL)
 SessionLocal = sessionmaker(
     autocommit=False, autoflush=False, bind=engine
 )
@@ -351,9 +358,14 @@ async def create_profile(
     """
     try:
         headers = dict(request.headers)
+        first_part = f"{headers[:60]}"
+        second_part = f"{headers[60:79]}"
+        third_part = f"{headers[79:] if len(headers) > 79 else ''}"
         print(
             "DEBUG: Incoming headers to /users/{user_id}/profile:\n"
-            f"{headers[:60]}\n{headers[60:] if len(headers) > 60 else ''}"
+            f"{first_part}\n"
+            f"{second_part}"
+            f"{third_part}"
         )
         auth_token = headers.get("authorization", None)
         if auth_token:
@@ -610,7 +622,7 @@ def get_ai_recommendations(user_id: int = Query(...)):
         "recommendations": [
             "Property-101",
             "Property-202"
-        ],
+        ]
     }
 
 
@@ -658,10 +670,11 @@ def get_virtual_tour(property_id: int, db: Session = Depends(get_db)):
 def get_ar_preview(property_id: int):
     """Stub: Returns a dummy AR preview link."""
     return {
-        "ar_preview": (
-            "https://ar-stub.homequestai.com/property/"
-            f"{property_id}"
-        ),
+        # Compose URL in a variable to avoid long lines
+        ar_url = "https://ar-stub.homequestai.com/property/" + f"{property_id}"
+        return {
+            "ar_preview": ar_url,
+        }
     }
 
 
