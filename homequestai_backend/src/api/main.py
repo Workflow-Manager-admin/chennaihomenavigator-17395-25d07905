@@ -352,9 +352,8 @@ async def create_profile(
     try:
         headers = dict(request.headers)
         print(
-            "DEBUG: Incoming headers to "
-            "/users/{user_id}/profile:\n"
-            f"{headers}"
+            "DEBUG: Incoming headers to /users/{user_id}/profile:\n"
+            f"{headers[:60]}\n{headers[60:] if len(headers) > 60 else ''}"
         )
         auth_token = headers.get("authorization", None)
         if auth_token:
@@ -704,7 +703,8 @@ def create_review(user_id: int, review: ReviewCreate,
 def get_property_reviews(property_id: int, db: Session = Depends(get_db)):
     """Get (approved) reviews for a property."""
     reviews = db.query(Review).filter(
-        Review.property_id == property_id, Review.approved.is_(True)
+        Review.property_id == property_id,
+        Review.approved.is_(True)
     ).all()
     return [ReviewOut.from_orm(r) for r in reviews]
 
@@ -718,7 +718,9 @@ def get_property_reviews(property_id: int, db: Session = Depends(get_db)):
 )
 def get_reviews_pending_moderation(db: Session = Depends(get_db)):
     """List all pending reviews for moderator (admin use)."""
-    reviews = db.query(Review).filter(Review.approved.is_(False)).all()
+    reviews = db.query(Review).filter(
+        Review.approved.is_(False)
+    ).all()
     return [ReviewOut.from_orm(r) for r in reviews]
 
 
