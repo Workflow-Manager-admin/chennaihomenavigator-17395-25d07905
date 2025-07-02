@@ -1,38 +1,55 @@
-from fastapi import FastAPI, WebSocket, Depends, HTTPException, Query, Request
+from fastapi import (
+    FastAPI,
+    WebSocket,
+    Depends,
+    HTTPException,
+    Query,
+    Request,
+)
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from typing import List, Optional
 from sqlalchemy import (
-    create_engine, Column, Integer, String, Float, Text, ForeignKey,
-    DateTime, Boolean
+    create_engine,
+    Column,
+    Integer,
+    String,
+    Float,
+    Text,
+    ForeignKey,
+    DateTime,
+    Boolean,
 )
 from sqlalchemy.orm import (
-    sessionmaker, declarative_base, relationship, Session
+    sessionmaker,
+    declarative_base,
+    relationship,
+    Session,
 )
 from pydantic import BaseModel, EmailStr
-import sqlite3
 import datetime
-
-
 import os
 
-# PostgreSQL (Supabase) setup using environment variables
+# PostgreSQL (Supabase) setup using environment variables.
+# The backend must connect to SUPABASE_DB_URL; fallback to SQLite is deprecated.
 SUPABASE_DB_URL = os.getenv("SUPABASE_DB_URL")
-SQLALCHEMY_DATABASE_URL = SUPABASE_DB_URL or "sqlite:///./homequestai.db"
-# Use connect_args only for SQLite
-if SQLALCHEMY_DATABASE_URL.startswith("sqlite"):
-    engine = create_engine(
-        SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False}
+if not SUPABASE_DB_URL:
+    raise RuntimeError(
+        "SUPABASE_DB_URL environment variable must be set for "
+        "database connectivity."
     )
-else:
-    engine = create_engine(SQLALCHEMY_DATABASE_URL)
+SQLALCHEMY_DATABASE_URL = SUPABASE_DB_URL
+engine = create_engine(SQLALCHEMY_DATABASE_URL)
 SessionLocal = sessionmaker(
-    autocommit=False, autoflush=False, bind=engine
+    autocommit=False,
+    autoflush=False,
+    bind=engine,
 )
 Base = declarative_base()
 
 
 # ----------------- DATABASE MODELS -----------------
+
 
 class User(Base):
     __tablename__ = "users"
@@ -46,7 +63,7 @@ class User(Base):
     profile = relationship(
         "UserProfile",
         uselist=False,
-        back_populates="user"
+        back_populates="user",
     )
 
 
@@ -113,6 +130,7 @@ Base.metadata.create_all(bind=engine)
 
 
 # ----------------- PYDANTIC MODELS (SCHEMAS) -----------------
+
 
 class UserCreate(BaseModel):
     email: EmailStr
@@ -209,6 +227,7 @@ class ViewingOut(BaseModel):
 
 # ----------------- FASTAPI SETUP -----------------
 
+
 app = FastAPI(
     title="HomeQuestAI Backend API",
     description=(
@@ -220,17 +239,25 @@ app = FastAPI(
     openapi_tags=[
         {"name": "Health", "description": "API Health and DB Connectivity"},
         {"name": "Users", "description": "User registration, login, profiles"},
-        {"name": "Properties",
-         "description": "Create/search/filter property listings"},
-        {"name": "Media",
-         "description": "Media for listings (photos, videos, links)"},
+        {
+            "name": "Properties",
+            "description": "Create/search/filter property listings",
+        },
+        {
+            "name": "Media",
+            "description": "Media for listings (photos, videos, links)",
+        },
         {"name": "Search", "description": "Property and map search/filter"},
-        {"name": "Scheduling",
-         "description": "Schedule/track property visits"},
+        {
+            "name": "Scheduling",
+            "description": "Schedule/track property visits",
+        },
         {"name": "Chat", "description": "WebSocket and Twilio chat"},
         {"name": "AI", "description": "AI Recommendations and insights"},
-        {"name": "Reviews",
-         "description": "CRUD for reviews & moderation"},
+        {
+            "name": "Reviews",
+            "description": "CRUD for reviews & moderation",
+        },
         {"name": "VirtualTours", "description": "360°/AR/VR/Media access"},
     ],
 )
@@ -253,6 +280,7 @@ def get_db():
 
 
 # ----------------- HEALTH CHECK ENDPOINTS -----------------
+
 
 # PUBLIC_INTERFACE
 @app.get(
@@ -277,47 +305,49 @@ def health_check():
 )
 def db_health_check():
     """
-    Verifies SQLite DB connection.
+    Verifies database connection (Postgres/Supabase preferred)
+    using SQLAlchemy.
     """
     try:
-        conn = sqlite3.connect("homequestai.db")
-        conn.execute("SELECT 1;")
-        conn.close()
+        with engine.connect() as connection:
+            connection.execute("SELECT 1;")
         return {"db_connection": "ok"}
     except Exception as e:
         return JSONResponse(
             status_code=503,
             content={
                 "db_connection": "failed",
-                "detail": str(e)
+                "detail": str(e),
             },
         )
 
 
 # ----------------- USERS + PROFILE ENDPOINTS -----------------
-# Dummy auth only -- integrate with real auth later, hashed_password is not really used
+# Dummy auth only -- integrate with real auth later,
+# hashed_password is not really used
+
 
 # PUBLIC_INTERFACE
 @app.post(
     "/users/register",
     tags=["Users"],
-    summary="Register a new user"
+    summary="Register a new user",
 )
 def register_user(user: UserCreate, db: Session = Depends(get_db)):
     """Register user (simulated, not real auth)"""
     existing = db.query(User).filter(
-        User.email == user.email
+        User.email == user.email,
     ).first()
     if existing:
         raise HTTPException(
             status_code=400,
-            detail="Email already registered"
+            detail="Email already registered",
         )
     db_user = User(
         email=user.email,
         phone=user.phone,
         hashed_password=user.password,
-        name=user.name
+        name=user.name,
     )
     db.add(db_user)
     db.commit()
@@ -329,7 +359,7 @@ def register_user(user: UserCreate, db: Session = Depends(get_db)):
 @app.get(
     "/users/{user_id}",
     tags=["Users"],
-    response_model=UserOut
+    response_model=UserOut,
 )
 def get_user(user_id: int, db: Session = Depends(get_db)):
     """Get user details by ID."""
@@ -343,13 +373,13 @@ def get_user(user_id: int, db: Session = Depends(get_db)):
 @app.post(
     "/users/{user_id}/profile",
     tags=["Users"],
-    response_model=ProfileOut
+    response_model=ProfileOut,
 )
 async def create_profile(
     user_id: int,
     profile: ProfileCreate,
     request: Request,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """
     Create or update user profile.
@@ -365,7 +395,7 @@ async def create_profile(
             "DEBUG: Incoming headers to /users/{user_id}/profile:\n"
             f"{first_part}\n"
             f"{second_part}"
-            f"{third_part}"
+            f"{third_part}",
         )
         auth_token = headers.get("authorization", None)
         if auth_token:
@@ -383,7 +413,7 @@ async def create_profile(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     existing = db.query(UserProfile).filter(
-        UserProfile.user_id == user_id
+        UserProfile.user_id == user_id,
     ).first()
     if existing:
         for k, v in profile.dict(exclude_unset=True).items():
@@ -402,7 +432,7 @@ async def create_profile(
 @app.get(
     "/users/{user_id}/profile",
     tags=["Users"],
-    response_model=ProfileOut
+    response_model=ProfileOut,
 )
 def get_profile(user_id: int, db: Session = Depends(get_db)):
     """Get user profile."""
@@ -415,11 +445,13 @@ def get_profile(user_id: int, db: Session = Depends(get_db)):
 
 
 # ----------------- PROPERTY ENDPOINTS -----------------
+
+
 # PUBLIC_INTERFACE
 @app.post(
     "/properties/",
     tags=["Properties"],
-    response_model=PropertyOut
+    response_model=PropertyOut,
 )
 def create_property(
     property: PropertyCreate,
@@ -438,7 +470,7 @@ def create_property(
 @app.get(
     "/properties/",
     tags=["Properties"],
-    response_model=List[PropertyOut]
+    response_model=List[PropertyOut],
 )
 def search_properties(
     location: Optional[str] = Query(None),
@@ -446,7 +478,7 @@ def search_properties(
     min_price: Optional[float] = None,
     max_price: Optional[float] = None,
     amenities: Optional[str] = None,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """Search property listings with filters."""
     q = db.query(Property)
@@ -461,8 +493,7 @@ def search_properties(
     if amenities:
         q = q.filter(Property.amenities.contains(amenities))
     results = (
-        q.order_by(Property.created_at.desc())
-        .limit(20).all()
+        q.order_by(Property.created_at.desc()).limit(20).all()
     )
     return [
         PropertyOut.from_orm(p)
@@ -474,7 +505,7 @@ def search_properties(
 @app.get(
     "/properties/{property_id}",
     tags=["Properties"],
-    response_model=PropertyOut
+    response_model=PropertyOut,
 )
 def get_property(property_id: int, db: Session = Depends(get_db)):
     """Get details for one property."""
@@ -485,11 +516,13 @@ def get_property(property_id: int, db: Session = Depends(get_db)):
 
 
 # ----------------- MEDIA ENDPOINTS -----------------
+
+
 # PUBLIC_INTERFACE
 @app.get(
     "/properties/{property_id}/media",
     tags=["Media"],
-    response_model=List[MediaOut]
+    response_model=List[MediaOut],
 )
 def get_property_media(property_id: int, db: Session = Depends(get_db)):
     """Get all media for given property (photos/videos/links)"""
@@ -501,7 +534,7 @@ def get_property_media(property_id: int, db: Session = Depends(get_db)):
 @app.post(
     "/properties/{property_id}/media",
     tags=["Media"],
-    response_model=MediaOut
+    response_model=MediaOut,
 )
 def add_property_media(
     property_id: int,
@@ -516,7 +549,7 @@ def add_property_media(
     m = Media(
         property_id=property_id,
         url=url,
-        media_type=media_type
+        media_type=media_type,
     )
     db.add(m)
     db.commit()
@@ -525,21 +558,28 @@ def add_property_media(
 
 
 # ----------------- VIEWING/SCHEDULING ENDPOINTS -----------------
+
+
 # PUBLIC_INTERFACE
 @app.post(
     "/schedule/{user_id}/viewing",
     tags=["Scheduling"],
-    response_model=ViewingOut
+    response_model=ViewingOut,
 )
-def schedule_viewing(user_id: int, details: ViewingCreate,
-                     db: Session = Depends(get_db)):
+def schedule_viewing(
+    user_id: int,
+    details: ViewingCreate,
+    db: Session = Depends(get_db),
+):
     """Schedule a viewing for a property."""
     user = db.query(User).filter(User.id == user_id).first()
-    prop = db.query(Property).filter(Property.id == details.property_id).first()
+    prop = db.query(Property).filter(
+        Property.id == details.property_id
+    ).first()
     if not user or not prop:
         raise HTTPException(
             status_code=404,
-            detail="User or property not found"
+            detail="User or property not found",
         )
     v = Viewing(
         user_id=user_id,
@@ -556,7 +596,7 @@ def schedule_viewing(user_id: int, details: ViewingCreate,
 @app.get(
     "/schedule/{user_id}/viewings",
     tags=["Scheduling"],
-    response_model=List[ViewingOut]
+    response_model=List[ViewingOut],
 )
 def get_user_viewings(user_id: int, db: Session = Depends(get_db)):
     """Get all scheduled viewings by a user."""
@@ -570,6 +610,8 @@ def get_user_viewings(user_id: int, db: Session = Depends(get_db)):
 
 
 # ----------------- CHAT (WebSocket + SMS STUB) -----------------
+
+
 # PUBLIC_INTERFACE
 @app.websocket("/ws/chat/{user_id}")
 async def websocket_chat_endpoint(websocket: WebSocket, user_id: int):
@@ -595,10 +637,9 @@ async def websocket_chat_endpoint(websocket: WebSocket, user_id: int):
     "/chat/sms",
     tags=["Chat"],
     description="Stub: Send SMS via Twilio",
-    summary="Send SMS (stub only)"
+    summary="Send SMS (stub only)",
 )
-def send_sms_stub(phone_number: str = Query(...),
-                  message: str = Query(...)):
+def send_sms_stub(phone_number: str = Query(...), message: str = Query(...)):
     """Simulate SMS sending, for future integration with Twilio."""
     return {
         "status": "stub",
@@ -609,6 +650,8 @@ def send_sms_stub(phone_number: str = Query(...),
 
 
 # ----------------- SEARCH/AI/RECOMMENDATIONS/MARKET ENDPOINTS -----------------
+
+
 # PUBLIC_INTERFACE
 @app.get(
     "/ai/recommendations",
@@ -621,8 +664,8 @@ def get_ai_recommendations(user_id: int = Query(...)):
         "user_id": user_id,
         "recommendations": [
             "Property-101",
-            "Property-202"
-        ]
+            "Property-202",
+        ],
     }
 
 
@@ -644,6 +687,8 @@ def market_insights():
 
 
 # ----------------- VIRTUAL TOUR ENDPOINTS -----------------
+
+
 # PUBLIC_INTERFACE
 @app.get(
     "/virtualtour/{property_id}",
@@ -656,7 +701,7 @@ def get_virtual_tour(property_id: int, db: Session = Depends(get_db)):
     """
     media = db.query(Media).filter(
         Media.property_id == property_id,
-        Media.media_type == "video"
+        Media.media_type == "video",
     ).all()
     return [MediaOut.from_orm(m) for m in media]
 
@@ -669,31 +714,39 @@ def get_virtual_tour(property_id: int, db: Session = Depends(get_db)):
 )
 def get_ar_preview(property_id: int):
     """Stub: Returns a dummy AR preview link."""
+    # Compose URL in a variable to avoid long lines
+    ar_url = (
+        "https://ar-stub.homequestai.com/property/"
+        + f"{property_id}"
+    )
     return {
-        # Compose URL in a variable to avoid long lines
-        ar_url = "https://ar-stub.homequestai.com/property/" + f"{property_id}"
-        return {
-            "ar_preview": ar_url,
-        }
+        "ar_preview": ar_url,
     }
 
 
 # ----------------- REVIEWS ENDPOINTS -----------------
+
+
 # PUBLIC_INTERFACE
 @app.post(
     "/reviews/{user_id}",
     tags=["Reviews"],
-    response_model=ReviewOut
+    response_model=ReviewOut,
 )
-def create_review(user_id: int, review: ReviewCreate,
-                  db: Session = Depends(get_db)):
+def create_review(
+    user_id: int,
+    review: ReviewCreate,
+    db: Session = Depends(get_db),
+):
     """Create a new review for a property (defaults to unapproved)."""
     user = db.query(User).filter(User.id == user_id).first()
-    prop = db.query(Property).filter(Property.id == review.property_id).first()
+    prop = db.query(Property).filter(
+        Property.id == review.property_id
+    ).first()
     if not user or not prop:
         raise HTTPException(
             status_code=404,
-            detail="User or property not found"
+            detail="User or property not found",
         )
     r = Review(
         user_id=user_id,
@@ -711,13 +764,13 @@ def create_review(user_id: int, review: ReviewCreate,
 @app.get(
     "/reviews/property/{property_id}",
     tags=["Reviews"],
-    response_model=List[ReviewOut]
+    response_model=List[ReviewOut],
 )
 def get_property_reviews(property_id: int, db: Session = Depends(get_db)):
     """Get (approved) reviews for a property."""
     reviews = db.query(Review).filter(
         Review.property_id == property_id,
-        Review.approved.is_(True)
+        Review.approved.is_(True),
     ).all()
     return [ReviewOut.from_orm(r) for r in reviews]
 
@@ -727,12 +780,12 @@ def get_property_reviews(property_id: int, db: Session = Depends(get_db)):
     "/reviews/pending",
     tags=["Reviews"],
     response_model=List[ReviewOut],
-    summary="Get reviews awaiting moderation"
+    summary="Get reviews awaiting moderation",
 )
 def get_reviews_pending_moderation(db: Session = Depends(get_db)):
     """List all pending reviews for moderator (admin use)."""
     reviews = db.query(Review).filter(
-        Review.approved.is_(False)
+        Review.approved.is_(False),
     ).all()
     return [ReviewOut.from_orm(r) for r in reviews]
 
@@ -742,7 +795,7 @@ def get_reviews_pending_moderation(db: Session = Depends(get_db)):
     "/reviews/{review_id}/approve",
     tags=["Reviews"],
     summary="Approve a review",
-    response_model=ReviewOut
+    response_model=ReviewOut,
 )
 def approve_review(
     review_id: int,
@@ -766,15 +819,18 @@ def approve_review(
 
 
 # ---- Swagger documentation for direct WebSocket API usage ----
+
+
 # PUBLIC_INTERFACE
 @app.get(
     "/docs/websocket",
     tags=["Chat"],
-    summary="WebSocket API usage guide"
+    summary="WebSocket API usage guide",
 )
 def ws_api_usage():
     """
-    API endpoint showing info on how to connect to the WebSocket chat endpoint.
+    API endpoint showing info on how to connect to the WebSocket
+    chat endpoint.
     """
     return {
         "usage": (
@@ -795,5 +851,5 @@ if __name__ == "__main__":
         "src.api.main:app",
         host="0.0.0.0",
         port=3001,
-        reload=True
+        reload=True,
     )
