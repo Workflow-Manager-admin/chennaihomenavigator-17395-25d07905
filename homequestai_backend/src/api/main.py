@@ -589,7 +589,8 @@ def market_insights():
     return {
         "insights": (
             "Stub market insights about pricing, "
-            "trends, supply, demand."
+            "trends,\n"
+            "supply, demand."
         )
     }
 
