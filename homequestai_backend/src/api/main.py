@@ -26,7 +26,6 @@ Base = declarative_base()
 
 # ----------------- DATABASE MODELS -----------------
 
-
 class User(Base):
     __tablename__ = "users"
 
@@ -109,7 +108,6 @@ Base.metadata.create_all(bind=engine)
 
 
 # ----------------- PYDANTIC MODELS (SCHEMAS) -----------------
-
 
 class UserCreate(BaseModel):
     email: EmailStr
@@ -284,7 +282,10 @@ def db_health_check():
     except Exception as e:
         return JSONResponse(
             status_code=503,
-            content={"db_connection": "failed", "detail": str(e)},
+            content={
+                "db_connection": "failed",
+                "detail": str(e)
+            },
         )
 
 
@@ -298,16 +299,19 @@ def db_health_check():
 )
 def register_user(user: UserCreate, db: Session = Depends(get_db)):
     """Register user (simulated, not real auth)"""
-    existing = db.query(User).filter(User.email == user.email).first()
+    existing = db.query(User).filter(
+        User.email == user.email
+    ).first()
     if existing:
         raise HTTPException(
-            status_code=400, detail="Email already registered"
+            status_code=400,
+            detail="Email already registered"
         )
     db_user = User(
         email=user.email,
         phone=user.phone,
         hashed_password=user.password,
-        name=user.name,
+        name=user.name
     )
     db.add(db_user)
     db.commit()
@@ -418,8 +422,13 @@ def search_properties(
     if max_price:
         q = q.filter(Property.price <= max_price)
     if amenities:
-        q = q.filter(Property.amenities.contains(amenities))
-    results = q.order_by(Property.created_at.desc()).limit(20).all()
+        q = q.filter(
+            Property.amenities.contains(amenities)
+        )
+    results = (
+        q.order_by(Property.created_at.desc())
+        .limit(20).all()
+    )
     return [
         PropertyOut.from_orm(p)
         for p in results
@@ -493,7 +502,8 @@ def schedule_viewing(user_id: int, details: ViewingCreate,
     user = db.query(User).filter(User.id == user_id).first()
     prop = db.query(Property).filter(Property.id == details.property_id).first()
     if not user or not prop:
-        raise HTTPException(status_code=404, detail="User or property not found")
+        raise HTTPException(status_code=404,
+                            detail="User or property not found")
     v = Viewing(
         user_id=user_id,
         property_id=details.property_id,
@@ -551,11 +561,14 @@ async def websocket_chat_endpoint(websocket: WebSocket, user_id: int):
     description="Stub: Send SMS via Twilio",
     summary="Send SMS (stub only)"
 )
-def send_sms_stub(phone_number: str = Query(...), message: str = Query(...)):
+def send_sms_stub(phone_number: str = Query(...),
+                  message: str = Query(...)):
     """Simulate SMS sending, for future integration with Twilio."""
     return {
         "status": "stub",
-        "detail": f"Would send to {phone_number}: {message}",
+        "detail": (
+            f"Would send to {phone_number}: {message}"
+        ),
     }
 
 
@@ -644,7 +657,8 @@ def create_review(user_id: int, review: ReviewCreate,
     user = db.query(User).filter(User.id == user_id).first()
     prop = db.query(Property).filter(Property.id == review.property_id).first()
     if not user or not prop:
-        raise HTTPException(status_code=404, detail="User or property not found")
+        raise HTTPException(status_code=404,
+                            detail="User or property not found")
     r = Review(
         user_id=user_id,
         property_id=review.property_id,
@@ -707,7 +721,9 @@ def approve_review(
         return ReviewOut.from_orm(review)
     db.delete(review)
     db.commit()
-    raise HTTPException(status_code=204, detail="Review deleted")
+    raise HTTPException(
+        status_code=204, detail="Review deleted"
+    )
 
 
 # ---- Swagger documentation for direct WebSocket API usage ----
