@@ -1,3 +1,6 @@
+import datetime
+import os
+from dotenv import load_dotenv
 from fastapi import (
     FastAPI,
     WebSocket,
@@ -9,6 +12,7 @@ from fastapi import (
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from typing import List, Optional
+from pydantic import BaseModel, EmailStr
 from sqlalchemy import (
     create_engine,
     Column,
@@ -26,20 +30,21 @@ from sqlalchemy.orm import (
     relationship,
     Session,
 )
-from pydantic import BaseModel, EmailStr
-import datetime
-import os
+
+load_dotenv()  # Load environment variables from .env file
 
 # PostgreSQL (Supabase) setup using environment variables.
-# The backend must connect to SUPABASE_DB_URL; fallback to SQLite is deprecated.
+# Backend must connect to SUPABASE_DB_URL; fallback to SQLite is deprecated.
 SUPABASE_DB_URL = os.getenv("SUPABASE_DB_URL")
 if not SUPABASE_DB_URL:
     raise RuntimeError(
-        "SUPABASE_DB_URL environment variable must be set for "
-        "database connectivity."
+        "SUPABASE_DB_URL environment variable must be set for database "
+        "connectivity."
     )
 SQLALCHEMY_DATABASE_URL = SUPABASE_DB_URL
-engine = create_engine(SQLALCHEMY_DATABASE_URL)
+engine = create_engine(
+    SQLALCHEMY_DATABASE_URL
+)
 SessionLocal = sessionmaker(
     autocommit=False,
     autoflush=False,
@@ -261,6 +266,70 @@ app = FastAPI(
         {"name": "VirtualTours", "description": "360°/AR/VR/Media access"},
     ],
 )
+
+# DB Connection & Model Test
+
+
+@app.on_event("startup")
+def verify_supabase_property_table():
+    """
+    At startup, check that Property model is accessible in Supabase.
+    Attempts to insert a sample property if none exists and fetch it.
+    Logs results to stdout for verification.
+    """
+    db = SessionLocal()
+    try:
+        count = db.query(Property).count()
+        if count == 0:
+            # Try to add a sample property (with an existing user for listed_by)
+            user = db.query(User).first()
+            if user:
+                prop = Property(
+                    title="Connection Test Property",
+                    description=(
+                        "This is a test property to verify "
+                        "Supabase DB connection."
+                    ),
+                    location="Chennai",
+                    price=12345.67,
+                    property_type="rental",
+                    amenities="wifi,parking",
+                    listed_by=user.id,
+                )
+                db.add(prop)
+                db.commit()
+                print(
+                    "Startup: Inserted a test property "
+                    "for DB verification."
+                )
+            else:
+                print(
+                    "Startup: No users exist, "
+                    "skipping test property insert."
+                )
+        else:
+            print(
+                f"Startup: {count} properties "
+                "already in DB."
+            )
+        # Try to fetch property regardless
+        first_prop = db.query(Property).first()
+        if first_prop:
+            print("Startup: Successfully queried Property table.")
+            print(
+                f"Sample: {first_prop.title}"
+                f" (ID={first_prop.id})"
+            )
+        else:
+            print("Startup: Property table is empty.")
+    except Exception as e:
+        print(
+            "Startup: Supabase/Postgres Property table test failed:",
+            e
+        )
+    finally:
+        db.close()
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -649,7 +718,7 @@ def send_sms_stub(phone_number: str = Query(...), message: str = Query(...)):
     }
 
 
-# ----------------- SEARCH/AI/RECOMMENDATIONS/MARKET ENDPOINTS -----------------
+# ----------- SEARCH/AI/RECOMMENDATIONS/MARKET ENDPOINTS -----------
 
 
 # PUBLIC_INTERFACE
@@ -697,7 +766,8 @@ def market_insights():
 )
 def get_virtual_tour(property_id: int, db: Session = Depends(get_db)):
     """
-    Get links to property virtual tour and AR/360° media (stub/dummy for now).
+    Get links to property virtual tour and AR/360° media
+    (stub/dummy for now).
     """
     media = db.query(Media).filter(
         Media.property_id == property_id,
@@ -829,8 +899,8 @@ def approve_review(
 )
 def ws_api_usage():
     """
-    API endpoint showing info on how to connect to the WebSocket
-    chat endpoint.
+    Guide for connecting to WebSocket chat API. Shows examples and
+    connection details.
     """
     return {
         "usage": (
