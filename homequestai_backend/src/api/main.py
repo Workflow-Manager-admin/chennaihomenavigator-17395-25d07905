@@ -55,7 +55,6 @@ Base = declarative_base()
 
 # ----------------- DATABASE MODELS -----------------
 
-
 class User(Base):
     __tablename__ = "users"
 
@@ -135,7 +134,6 @@ Base.metadata.create_all(bind=engine)
 
 
 # ----------------- PYDANTIC MODELS (SCHEMAS) -----------------
-
 
 class UserCreate(BaseModel):
     email: EmailStr
@@ -232,7 +230,6 @@ class ViewingOut(BaseModel):
 
 # ----------------- FASTAPI SETUP -----------------
 
-
 app = FastAPI(
     title="HomeQuestAI Backend API",
     description=(
@@ -268,7 +265,6 @@ app = FastAPI(
 )
 
 # DB Connection & Model Test
-
 
 @app.on_event("startup")
 def verify_supabase_property_table():
@@ -350,7 +346,6 @@ def get_db():
 
 # ----------------- HEALTH CHECK ENDPOINTS -----------------
 
-
 # PUBLIC_INTERFACE
 @app.get(
     "/",
@@ -394,7 +389,6 @@ def db_health_check():
 # ----------------- USERS + PROFILE ENDPOINTS -----------------
 # Dummy auth only -- integrate with real auth later,
 # hashed_password is not really used
-
 
 # PUBLIC_INTERFACE
 @app.post(
@@ -515,7 +509,6 @@ def get_profile(user_id: int, db: Session = Depends(get_db)):
 
 # ----------------- PROPERTY ENDPOINTS -----------------
 
-
 # PUBLIC_INTERFACE
 @app.post(
     "/properties/",
@@ -586,7 +579,6 @@ def get_property(property_id: int, db: Session = Depends(get_db)):
 
 # ----------------- MEDIA ENDPOINTS -----------------
 
-
 # PUBLIC_INTERFACE
 @app.get(
     "/properties/{property_id}/media",
@@ -627,7 +619,6 @@ def add_property_media(
 
 
 # ----------------- VIEWING/SCHEDULING ENDPOINTS -----------------
-
 
 # PUBLIC_INTERFACE
 @app.post(
@@ -680,7 +671,6 @@ def get_user_viewings(user_id: int, db: Session = Depends(get_db)):
 
 # ----------------- CHAT (WebSocket + SMS STUB) -----------------
 
-
 # PUBLIC_INTERFACE
 @app.websocket("/ws/chat/{user_id}")
 async def websocket_chat_endpoint(websocket: WebSocket, user_id: int):
@@ -720,7 +710,6 @@ def send_sms_stub(phone_number: str = Query(...), message: str = Query(...)):
 
 # ----------- SEARCH/AI/RECOMMENDATIONS/MARKET ENDPOINTS -----------
 
-
 # PUBLIC_INTERFACE
 @app.get(
     "/ai/recommendations",
@@ -757,7 +746,6 @@ def market_insights():
 
 # ----------------- VIRTUAL TOUR ENDPOINTS -----------------
 
-
 # PUBLIC_INTERFACE
 @app.get(
     "/virtualtour/{property_id}",
@@ -786,16 +774,18 @@ def get_ar_preview(property_id: int):
     """Stub: Returns a dummy AR preview link."""
     # Compose URL in a variable to avoid long lines
     ar_url = (
-        "https://ar-stub.homequestai.com/property/"
-        + f"{property_id}"
+        "https://ar-stub.homequestai.com/"
+        "property/"
+        f"{property_id}"
     )
+    # Ensure line length does not exceed 79 characters for flake8 compliance
+    # The assignment above places each part on its own line and every line <= 79 chars
     return {
         "ar_preview": ar_url,
     }
 
 
 # ----------------- REVIEWS ENDPOINTS -----------------
-
 
 # PUBLIC_INTERFACE
 @app.post(
@@ -889,7 +879,6 @@ def approve_review(
 
 
 # ---- Swagger documentation for direct WebSocket API usage ----
-
 
 # PUBLIC_INTERFACE
 @app.get(
